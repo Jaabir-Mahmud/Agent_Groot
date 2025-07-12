@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 from functools import wraps
 from werkzeug.utils import secure_filename
-from ..utils.puter import puter_ai
+from utils.puter import puter_ai
 
 # Initialize blueprint
 agents_bp = Blueprint("agents", __name__)
@@ -358,7 +358,7 @@ def puter_upload_file():
             return jsonify({"success": False, "error": "Puter.js AI service is not available"}), 503
         
         # Save file temporarily
-        filename = secure_filename(file.filename)
+        filename = secure_filename(file.filename) if file.filename else "uploaded_file"
         temp_dir = tempfile.mkdtemp()
         file_path = os.path.join(temp_dir, filename)
         file.save(file_path)

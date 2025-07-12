@@ -42,22 +42,22 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
     if (isFastMode) {
       setIsPuterProcessing(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/puter/fast-mode`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            text: text,
-            context: 'Fast analysis and response generation'
-          })
-        });
-        
-        if (!response.ok) throw new Error('Puter.js request failed');
-        
-        const data = await response.json();
-        if (data.success) {
-          onAIMessage(data.result);
+        // Use Puter.js directly in the browser
+        if (typeof puter !== 'undefined') {
+          // Use Puter.js AI for fast analysis
+          const result = await puter.ai.chat({
+            messages: [
+              {
+                role: "user",
+                content: text
+              }
+            ],
+            model: "claude-3.5-sonnet"
+          });
+          
+          onAIMessage(result.content);
         } else {
-          throw new Error(data.error || 'Puter.js failed');
+          throw new Error('Puter.js not loaded');
         }
       } catch (error) {
         onAIMessage(`Puter.js Error: ${error.message}`);
@@ -121,23 +121,28 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
     onSendMessage(`Uploading file: ${file.name}`);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('task', inputValue || `Analyze this ${file.name} file and provide insights`);
-      
-      const response = await fetch(`${API_BASE_URL}/puter/upload`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) throw new Error('File upload failed');
-      
-      const data = await response.json();
-      if (data.success) {
-        onAIMessage(data.result);
+      // Use Puter.js directly in the browser
+      if (typeof puter !== 'undefined') {
+        // Upload file to Puter.js cloud storage
+        const uploadedFile = await puter.fs.upload(file);
+        
+        // Use Puter.js AI to analyze the file
+        const task = inputValue || `Analyze this ${file.name} file and provide insights`;
+        
+        const result = await puter.ai.chat({
+          messages: [
+            {
+              role: "user",
+              content: `${task}\n\nFile: ${uploadedFile.name}\nFile URL: ${uploadedFile.url}`
+            }
+          ],
+          model: "claude-3.5-sonnet"
+        });
+        
+        onAIMessage(result.content);
         setInputValue('');
       } else {
-        throw new Error(data.error || 'File processing failed');
+        throw new Error('Puter.js not loaded');
       }
     } catch (error) {
       onAIMessage(`File Processing Error: ${error.message}`);
