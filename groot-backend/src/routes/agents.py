@@ -5,11 +5,15 @@ from datetime import datetime
 import uuid
 import requests
 import json
+import os
+import tempfile
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from functools import wraps
+from werkzeug.utils import secure_filename
+from ..utils.puter import puter_ai
 
 # Initialize blueprint
 agents_bp = Blueprint("agents", __name__)
@@ -333,3 +337,136 @@ def performance_stats():
         "active_threads": threading.active_count(),
         "system_time": datetime.utcnow().isoformat() + "Z"
     })
+
+# Puter.js AI Integration Routes
+@agents_bp.route("/puter/upload", methods=["POST"])
+@handle_errors
+def puter_upload_file():
+    """Upload and process file with Puter.js AI"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"}), 400
+        
+        file = request.files['file']
+        task_description = request.form.get('task', 'Analyze this file and provide insights')
+        
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"}), 400
+        
+        # Check if Puter.js is available
+        if not puter_ai.is_available():
+            return jsonify({"success": False, "error": "Puter.js AI service is not available"}), 503
+        
+        # Save file temporarily
+        filename = secure_filename(file.filename)
+        temp_dir = tempfile.mkdtemp()
+        file_path = os.path.join(temp_dir, filename)
+        file.save(file_path)
+        
+        try:
+            # Process file with Puter.js
+            result = puter_ai.process_file(file_path, task_description)
+            
+            if result["success"]:
+                # Add to task history
+                task_id = str(uuid.uuid4())
+                task_history.append({
+                    "id": task_id,
+                    "task": f"Puter.js File Analysis: {filename}",
+                    "status": "completed",
+                    "result": result["result"],
+                    "created_at": datetime.utcnow().isoformat() + "Z",
+                    "completed_at": datetime.utcnow().isoformat() + "Z",
+                    "model": "puter-ai",
+                    "file_info": result.get("file_info", {})
+                })
+                
+                add_activity("Puter.js AI", f"Processed file: {filename}", task_id, "success")
+                
+                return jsonify({
+                    "success": True,
+                    "task_id": task_id,
+                    "result": result["result"],
+                    "file_info": result.get("file_info", {}),
+                    "metadata": result.get("metadata", {})
+                })
+            else:
+                return jsonify({"success": False, "error": result["error"]}), 500
+                
+        finally:
+            # Clean up temporary file
+            try:
+                os.remove(file_path)
+                os.rmdir(temp_dir)
+            except:
+                pass
+                
+    except Exception as e:
+        logger.error(f"Error in Puter.js file upload: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@agents_bp.route("/puter/fast-mode", methods=["POST"])
+@handle_errors
+def puter_fast_mode():
+    """Fast mode analysis using Puter.js AI"""
+    try:
+        data = request.get_json()
+        text_input = data.get('text', '')
+        context = data.get('context', '')
+        
+        if not text_input.strip():
+            return jsonify({"success": False, "error": "No text provided"}), 400
+        
+        # Check if Puter.js is available
+        if not puter_ai.is_available():
+            return jsonify({"success": False, "error": "Puter.js AI service is not available"}), 503
+        
+        # Process with Puter.js fast mode
+        result = puter_ai.fast_mode_analysis(text_input, context)
+        
+        if result["success"]:
+            # Add to task history
+            task_id = str(uuid.uuid4())
+            task_history.append({
+                "id": task_id,
+                "task": f"Puter.js Fast Mode: {text_input[:50]}...",
+                "status": "completed",
+                "result": result["result"],
+                "created_at": datetime.utcnow().isoformat() + "Z",
+                "completed_at": datetime.utcnow().isoformat() + "Z",
+                "model": "puter-ai",
+                "processing_time": result.get("processing_time", 0),
+                "confidence": result.get("confidence", 0.0)
+            })
+            
+            add_activity("Puter.js AI", "Fast mode analysis completed", task_id, "success")
+            
+            return jsonify({
+                "success": True,
+                "task_id": task_id,
+                "result": result["result"],
+                "processing_time": result.get("processing_time", 0),
+                "confidence": result.get("confidence", 0.0)
+            })
+        else:
+            return jsonify({"success": False, "error": result["error"]}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in Puter.js fast mode: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@agents_bp.route("/puter/status", methods=["GET"])
+@handle_errors
+def puter_status():
+    """Check Puter.js AI service status"""
+    try:
+        is_available = puter_ai.is_available()
+        return jsonify({
+            "success": True,
+            "available": is_available,
+            "service": "Puter.js AI",
+            "status": "online" if is_available else "offline"
+        })
+    except Exception as e:
+        logger.error(f"Error checking Puter.js status: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

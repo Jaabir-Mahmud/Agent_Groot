@@ -236,6 +236,11 @@ const Dashboard = () => {
     }
   };
 
+  const handlePuterResult = (result, source) => {
+    setCurrentResult(`[${source}]\n\n${result}`);
+    toast.success(`${source} completed successfully!`);
+  };
+
   // Status and icon helpers
   const getStatusColor = (status) => {
     switch (status) {
@@ -294,13 +299,14 @@ const Dashboard = () => {
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
           {/* Task Input */}
-          <TaskInput
-            taskInput={taskInput}
-            setTaskInput={setTaskInput}
-            isProcessing={isProcessing}
-            handleSubmitTask={handleSubmitTask}
-            agents={agents}
-          />
+                          <TaskInput 
+                  taskInput={taskInput}
+                  setTaskInput={setTaskInput}
+                  isProcessing={isProcessing}
+                  handleSubmitTask={handleSubmitTask}
+                  agents={agents}
+                  onPuterResult={handlePuterResult}
+                />
           <div className="flex-1 p-6 overflow-hidden">
             <Tabs defaultValue="workspace" className="h-full">
               <TabsList className="grid w-full grid-cols-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
