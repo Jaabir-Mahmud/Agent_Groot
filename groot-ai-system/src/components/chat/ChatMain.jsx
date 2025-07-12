@@ -44,18 +44,10 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
       try {
         // Use Puter.js directly in the browser
         if (typeof puter !== 'undefined') {
-          // Use Puter.js AI for fast analysis
-          const result = await puter.ai.chat({
-            messages: [
-              {
-                role: "user",
-                content: text
-              }
-            ],
-            model: "claude-3.5-sonnet"
-          });
+          // Use Puter.js AI for fast analysis with correct API
+          const result = await puter.ai.chat(text);
           
-          onAIMessage(result.content);
+          onAIMessage(result);
         } else {
           throw new Error('Puter.js not loaded');
         }
@@ -126,20 +118,12 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
         // Upload file to Puter.js cloud storage
         const uploadedFile = await puter.fs.upload(file);
         
-        // Use Puter.js AI to analyze the file
+        // Use Puter.js AI to analyze the file with correct API
         const task = inputValue || `Analyze this ${file.name} file and provide insights`;
         
-        const result = await puter.ai.chat({
-          messages: [
-            {
-              role: "user",
-              content: `${task}\n\nFile: ${uploadedFile.name}\nFile URL: ${uploadedFile.url}`
-            }
-          ],
-          model: "claude-3.5-sonnet"
-        });
+        const result = await puter.ai.chat(task, uploadedFile.url);
         
-        onAIMessage(result.content);
+        onAIMessage(result);
         setInputValue('');
       } else {
         throw new Error('Puter.js not loaded');
