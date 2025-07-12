@@ -1,0 +1,76 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        cd groot-backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build frontend
+      run: |
+        cd groot-ai-system
+        npm ci
+        npm run build
+    
+    - name: Copy frontend to backend
+      run: |
+        cp -r groot-ai-system/dist/* groot-backend/src/static/
+    
+    - name: Create deployment package
+      run: |
+        cd groot-backend
+        tar -czf deployment.tar.gz src/ requirements.txt
+    
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v3
+      with:
+        name: backend-deployment
+        path: groot-backend/deployment.tar.gz
+
+  # Uncomment and configure for specific deployment platforms
+  # deploy-to-railway:
+  #   runs-on: ubuntu-latest
+  #   needs: deploy-backend
+  #   if: github.ref == 'refs/heads/main'
+  #   
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   
+  #   - name: Deploy to Railway
+  #     uses: bervProject/railway-deploy@v1.0.0
+  #     with:
+  #       railway_token: ${{ secrets.RAILWAY_TOKEN }}
+  #       service: groot-backend
+
+  # deploy-to-vercel:
+  #   runs-on: ubuntu-latest
+  #   needs: deploy-backend
+  #   if: github.ref == 'refs/heads/main'
+  #   
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   
+  #   - name: Deploy to Vercel
+  #     uses: amondnet/vercel-action@v25
+  #     with:
+  #       vercel-token: ${{ secrets.VERCEL_TOKEN }}
+  #       vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+  #       vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+  #       working-directory: ./groot-ai-system 
