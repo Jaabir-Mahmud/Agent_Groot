@@ -18,6 +18,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPuterProcessing, setIsPuterProcessing] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [isFastMode, setIsFastMode] = useState(false);
   const pollingRef = useRef(null);
   const inputRef = useRef(null);
   const endRef = useRef(null);
@@ -36,23 +37,53 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
 
   const sendMessage = async (text) => {
     onSendMessage(text);
-    setIsLoading(true);
-    try {
-      const res = await fetch(`http://127.0.0.1:5000/api/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task: text })
-      });
-      const data = await res.json();
-      if (data.success && data.task_id) {
-        pollForResult(data.task_id);
-      } else {
-        onAIMessage(data.error || "Sorry, something went wrong.");
+    
+    // Use Puter.js if Fast Mode is enabled, otherwise use Mistral
+    if (isFastMode) {
+      setIsPuterProcessing(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/puter/fast-mode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: text,
+            context: 'Fast analysis and response generation'
+          })
+        });
+        
+        if (!response.ok) throw new Error('Puter.js request failed');
+        
+        const data = await response.json();
+        if (data.success) {
+          onAIMessage(data.result);
+        } else {
+          throw new Error(data.error || 'Puter.js failed');
+        }
+      } catch (error) {
+        onAIMessage(`Puter.js Error: ${error.message}`);
+      } finally {
+        setIsPuterProcessing(false);
+      }
+    } else {
+      // Use regular Mistral processing
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: text })
+        });
+        const data = await res.json();
+        if (data.success && data.task_id) {
+          pollForResult(data.task_id);
+        } else {
+          onAIMessage(data.error || "Sorry, something went wrong.");
+          setIsLoading(false);
+        }
+      } catch {
+        onAIMessage("Network error. Please try again.");
         setIsLoading(false);
       }
-    } catch {
-      onAIMessage("Network error. Please try again.");
-      setIsLoading(false);
     }
   };
 
@@ -78,36 +109,8 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
     navigator.clipboard.writeText(text);
   };
 
-  const handlePuterFastMode = async () => {
-    if (!inputValue.trim() || isPuterProcessing) return;
-    
-    setIsPuterProcessing(true);
-    onSendMessage(inputValue);
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/puter/fast-mode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text: inputValue,
-          context: 'Fast analysis and response generation'
-        })
-      });
-      
-      if (!response.ok) throw new Error('Fast mode request failed');
-      
-      const data = await response.json();
-      if (data.success) {
-        onAIMessage(data.result);
-        setInputValue('');
-      } else {
-        throw new Error(data.error || 'Fast mode failed');
-      }
-    } catch (error) {
-      onAIMessage(`Puter.js Fast Mode Error: ${error.message}`);
-    } finally {
-      setIsPuterProcessing(false);
-    }
+  const toggleFastMode = () => {
+    setIsFastMode(!isFastMode);
   };
 
   const handleFileUpload = async (event) => {
@@ -195,11 +198,14 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
             </button>
             <button 
               type="button" 
-              onClick={handlePuterFastMode}
-              disabled={!inputValue.trim() || isPuterProcessing}
-              className="text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" 
+              onClick={toggleFastMode}
+              className={`transition rounded-full shrink-0 ${
+                isFastMode 
+                  ? 'text-cyan-600 bg-cyan-100 hover:bg-cyan-200' 
+                  : 'text-gray-400 hover:text-cyan-600 hover:bg-gray-100'
+              }`}
               tabIndex={-1} 
-              title="Puter.js Fast Mode"
+              title="Fast Mode"
             >
               <FiZap size={16} />
             </button>
@@ -292,7 +298,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
               <div className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-neutral-100 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 sm:px-4 py-2.5 text-sm leading-relaxed">
                 <div className="flex items-center gap-2">
                   <span className="text-green-900 dark:text-green-300 font-medium">
-                    {isPuterProcessing ? "Puter.js AI" : "Groot"}
+                    {isPuterProcessing ? "Puter.js AI" : "Mistral"}
                   </span>
                   <span className="text-gray-600 dark:text-gray-300">
                     {isPuterProcessing ? "processing with AI" : "working on it"}
@@ -336,11 +342,14 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
           </button>
           <button 
             type="button" 
-            onClick={handlePuterFastMode}
-            disabled={!inputValue.trim() || isPuterProcessing}
-            className="text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" 
+            onClick={toggleFastMode}
+            className={`transition rounded-full shrink-0 ${
+              isFastMode 
+                ? 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900 dark:text-cyan-400 hover:bg-cyan-200 dark:hover:bg-cyan-800' 
+                : 'text-gray-400 dark:text-neutral-400 hover:text-cyan-600 hover:bg-gray-100 dark:hover:bg-neutral-800'
+            }`}
             tabIndex={-1} 
-            title="Puter.js Fast Mode"
+            title="Fast Mode"
           >
             <FiZap size={20} />
           </button>
