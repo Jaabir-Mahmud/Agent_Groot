@@ -37,7 +37,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty print for performance
 
 # Enable CORS with simple configuration
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
 
 # Initialize database
 db.init_app(app)
@@ -110,6 +110,12 @@ def performance_stats():
     })
 
 # OPTIONS requests are handled automatically by Flask-CORS
+
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """Handle OPTIONS requests for API routes"""
+    response = app.make_default_options_response()
+    return response
 
 @app.after_request
 def after_request(response):
