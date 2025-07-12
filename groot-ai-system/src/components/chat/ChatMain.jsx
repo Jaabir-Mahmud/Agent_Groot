@@ -48,7 +48,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
           const result = await puter.ai.chat(text, { model: "gpt-4.1-nano" });
           
           // Extract text content from the response object
-          const responseText = result?.message || result?.text || result?.toString() || 'No response received';
+          const responseText = result?.content || result?.message || result?.text || (typeof result === 'string' ? result : 'No response received');
           onAIMessage(responseText);
         } else {
           throw new Error('Puter.js not loaded');
@@ -126,7 +126,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
         const result = await puter.ai.chat(task, uploadedFile.url, { model: "gpt-4o" });
         
         // Extract text content from the response object
-        const responseText = result?.message || result?.text || result?.toString() || 'No response received';
+        const responseText = result?.content || result?.message || result?.text || (typeof result === 'string' ? result : 'No response received');
         onAIMessage(responseText);
         setInputValue('');
       } else {
