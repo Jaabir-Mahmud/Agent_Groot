@@ -45,9 +45,11 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
         // Use Puter.js directly in the browser
         if (typeof puter !== 'undefined') {
           // Use Puter.js AI for fast analysis with correct API
-          const result = await puter.ai.chat(text);
+          const result = await puter.ai.chat(text, { model: "gpt-4.1-nano" });
           
-          onAIMessage(result);
+          // Extract text content from the response object
+          const responseText = result?.message || result?.text || result?.toString() || 'No response received';
+          onAIMessage(responseText);
         } else {
           throw new Error('Puter.js not loaded');
         }
@@ -121,9 +123,11 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
         // Use Puter.js AI to analyze the file with correct API
         const task = inputValue || `Analyze this ${file.name} file and provide insights`;
         
-        const result = await puter.ai.chat(task, uploadedFile.url);
+        const result = await puter.ai.chat(task, uploadedFile.url, { model: "gpt-4o" });
         
-        onAIMessage(result);
+        // Extract text content from the response object
+        const responseText = result?.message || result?.text || result?.toString() || 'No response received';
+        onAIMessage(responseText);
         setInputValue('');
       } else {
         throw new Error('Puter.js not loaded');
