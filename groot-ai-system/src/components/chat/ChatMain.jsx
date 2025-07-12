@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FiSend, FiPaperclip, FiMic, FiCopy } from "react-icons/fi";
+import { FiSend, FiPaperclip, FiMic, FiCopy, FiZap } from "react-icons/fi";
 
 // Avatar components instead of image files
 const AIAvatar = () => (
@@ -16,10 +16,13 @@ const UserAvatar = () => (
 
 export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isPuterProcessing, setIsPuterProcessing] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const pollingRef = useRef(null);
   const inputRef = useRef(null);
   const endRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const API_BASE_URL = 'http://127.0.0.1:5000/api';
 
   useEffect(() => {
     if (endRef.current) {
@@ -75,9 +78,82 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
     navigator.clipboard.writeText(text);
   };
 
+  const handlePuterFastMode = async () => {
+    if (!inputValue.trim() || isPuterProcessing) return;
+    
+    setIsPuterProcessing(true);
+    onSendMessage(inputValue);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/puter/fast-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: inputValue,
+          context: 'Fast analysis and response generation'
+        })
+      });
+      
+      if (!response.ok) throw new Error('Fast mode request failed');
+      
+      const data = await response.json();
+      if (data.success) {
+        onAIMessage(data.result);
+        setInputValue('');
+      } else {
+        throw new Error(data.error || 'Fast mode failed');
+      }
+    } catch (error) {
+      onAIMessage(`Puter.js Fast Mode Error: ${error.message}`);
+    } finally {
+      setIsPuterProcessing(false);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setIsPuterProcessing(true);
+    onSendMessage(`Uploading file: ${file.name}`);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('task', inputValue || `Analyze this ${file.name} file and provide insights`);
+      
+      const response = await fetch(`${API_BASE_URL}/puter/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('File upload failed');
+      
+      const data = await response.json();
+      if (data.success) {
+        onAIMessage(data.result);
+        setInputValue('');
+      } else {
+        throw new Error(data.error || 'File processing failed');
+      }
+    } catch (error) {
+      onAIMessage(`File Processing Error: ${error.message}`);
+    } finally {
+      setIsPuterProcessing(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleFileButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleInputSend = (e) => {
     e.preventDefault();
-    if (inputValue.trim() && !isLoading) {
+    if (inputValue.trim() && !isLoading && !isPuterProcessing) {
       sendMessage(inputValue);
       setInputValue("");
     }
@@ -96,14 +172,36 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
             onSubmit={handleInputSend}
             className="flex items-center flex-nowrap gap-2 w-full bg-white rounded-2xl shadow-lg border border-gray-200 px-3 py-3"
           >
-            <button type="button" className=" text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" tabIndex={-1} title="Attach file">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileUpload}
+              accept=".txt,.md,.py,.js,.jsx,.ts,.tsx,.json,.xml,.html,.css,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.svg"
+              className="hidden"
+            />
+            <button 
+              type="button" 
+              onClick={handleFileButtonClick}
+              disabled={isPuterProcessing}
+              className="text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" 
+              tabIndex={-1} 
+              title="Attach file with Puter.js"
+            >
               <FiPaperclip size={16} />
             </button>
             <button type="button" className=" text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" tabIndex={-1} title="Agent mode">
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 17v-2a4 4 0 0 1 4-4h2"/><path d="M9 7V5a4 4 0 0 1 4-4h2"/><path d="M17 7v2a4 4 0 0 1-4 4h-2"/><path d="M15 17v2a4 4 0 0 1-4 4h-2"/></svg>
             </button>
-            <button type="button" className=" text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" tabIndex={-1} title="Fast Mode">
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07l-1.42 1.42M6.34 17.66l-1.42 1.42m12.02 0l-1.42-1.42M6.34 6.34L4.92 4.92"/></svg>
+            <button 
+              type="button" 
+              onClick={handlePuterFastMode}
+              disabled={!inputValue.trim() || isPuterProcessing}
+              className="text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" 
+              tabIndex={-1} 
+              title="Puter.js Fast Mode"
+            >
+              <FiZap size={16} />
             </button>
             <button type="button" className=" text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" tabIndex={-1} title="Prompt templates">
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 8h8v8H8z"/></svg>
@@ -120,7 +218,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
                 e.target.style.height = Math.max(48, Math.min(e.target.scrollHeight, 72)) + 'px';
               }}
               style={{ lineHeight: '1.5', maxHeight: '72px', overflow: 'hidden' }}
-              disabled={isLoading}
+              disabled={isLoading || isPuterProcessing}
             />
             <button type="button" className="p-2 text-gray-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 shrink-0" tabIndex={-1} title="Voice input">
               <FiMic size={20} />
@@ -185,7 +283,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
             </div>
           </div>
         ))}
-        {isLoading && (
+        {(isLoading || isPuterProcessing) && (
           <div className="flex items-start gap-3 self-start">
             <div className="mt-1">
               <AIAvatar />
@@ -193,8 +291,12 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
             <div className="flex flex-col max-w-[90%] sm:max-w-[85%] items-start">
               <div className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-neutral-100 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 sm:px-4 py-2.5 text-sm leading-relaxed">
                 <div className="flex items-center gap-2">
-                  <span className="text-green-900 dark:text-green-300 font-medium">Groot</span>
-                  <span className="text-gray-600 dark:text-gray-300">working on it</span>
+                  <span className="text-green-900 dark:text-green-300 font-medium">
+                    {isPuterProcessing ? "Puter.js AI" : "Groot"}
+                  </span>
+                  <span className="text-gray-600 dark:text-gray-300">
+                    {isPuterProcessing ? "processing with AI" : "working on it"}
+                  </span>
                   <div className="flex space-x-1">
                     <div className="w-2 h-2 bg-green-700 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                     <div className="w-2 h-2 bg-green-700 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -218,16 +320,29 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
           className="flex items-center flex-nowrap gap-2 w-full max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-2xl shadow-lg border border-gray-200 dark:border-neutral-800 px-3 py-2 sm:py-3"
         >
           {/* Left icon buttons */}
-          <button type="button" className="p-2 text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" tabIndex={-1} title="Attach file">
+          <button 
+            type="button" 
+            onClick={handleFileButtonClick}
+            disabled={isPuterProcessing}
+            className="p-2 text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" 
+            tabIndex={-1} 
+            title="Attach file with Puter.js"
+          >
             <FiPaperclip size={20} />
           </button>
           <button type="button" className="p-2 text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" tabIndex={-1} title="Agent mode">
             {/* Language/translate icon */}
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 17v-2a4 4 0 0 1 4-4h2"/><path d="M9 7V5a4 4 0 0 1 4-4h2"/><path d="M17 7v2a4 4 0 0 1-4 4h-2"/><path d="M15 17v2a4 4 0 0 1-4 4h-2"/></svg>
           </button>
-          <button type="button" className="text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" tabIndex={-1} title="Fast Mode">
-            {/* Magic/AI icon */}
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07l-1.42 1.42M6.34 17.66l-1.42 1.42m12.02 0l-1.42-1.42M6.34 6.34L4.92 4.92"/></svg>
+          <button 
+            type="button" 
+            onClick={handlePuterFastMode}
+            disabled={!inputValue.trim() || isPuterProcessing}
+            className="text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" 
+            tabIndex={-1} 
+            title="Puter.js Fast Mode"
+          >
+            <FiZap size={20} />
           </button>
           <button type="button" className="text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" tabIndex={-1} title="Prompt templates">
             {/* Prompt/template icon */}
@@ -246,7 +361,7 @@ export default function ChatMain({ conversation, onSendMessage, onAIMessage }) {
               e.target.style.height = Math.max(48, Math.min(e.target.scrollHeight, 72)) + 'px';
             }}
             style={{ lineHeight: '1.5', maxHeight: '72px', overflow: 'hidden' }}
-            disabled={isLoading}
+            disabled={isLoading || isPuterProcessing}
           />
           {/* Mic button */}
           <button type="button" className="p-2 text-gray-400 dark:text-neutral-400 hover:text-cyan-600 transition rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 shrink-0" tabIndex={-1} title="Voice input">
